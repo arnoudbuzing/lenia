@@ -20,46 +20,58 @@ Needs["Lenia`"]
 
 ## Quick Start
 
-### Creating a Viable Seed
+### Quickest Way: `LeniaSeed`
 
-Lenia creatures have specific spatial structures. A ring-shaped seed works well:
+Generate an interesting initial grid and run:
+
+```wolfram
+grid = LeniaSeed[128];
+result = Lenia[grid, 200, "ReturnHistory" -> True];
+ListAnimate[ArrayPlot[#, ColorFunction -> "SolarColors", Frame -> False] & /@ result]
+```
+
+You can also pick a specific seed type:
+
+```wolfram
+LeniaSeed[128, "Ring"]             (* single ring organism *)
+LeniaSeed[128, "MultiRing"]        (* two side-by-side rings *)
+LeniaSeed[128, "RandomOrganism"]   (* ring with random perturbation *)
+LeniaSeed[128, "Constellation"]    (* three organisms in a triangle *)
+LeniaSeed[128, "Asymmetric"]       (* off-center ring with a bump *)
+```
+
+### Manual Seed
+
+For full control, create a ring-shaped seed directly:
 
 ```wolfram
 gridSize = {128, 128};
 R = 13;
-
-(* Ring-shaped seed: density peaks at r ~ 0.5R from center *)
 grid = N @ Table[
   Module[{r = Sqrt[(i - 64)^2 + (j - 64)^2] / R},
     If[r < 1.0, Exp[-((r - 0.5)^2) / (2 * 0.15^2)], 0.0]
   ],
   {i, 1, 128}, {j, 1, 128}
 ];
-```
-
-### Running the Simulation
-
-```wolfram
 result = Lenia[grid, 200, "Mu" -> 0.15, "Sigma" -> 0.015, "Radius" -> R];
 ArrayPlot[result, ColorFunction -> "SolarColors"]
 ```
 
-### Returning History (for Animation)
+### Animation
 
 ```wolfram
 history = Lenia[grid, 200, "ReturnHistory" -> True];
-ListAnimate[ArrayPlot[#, ColorFunction -> "TemperatureMap"] & /@ history]
+ListAnimate[ArrayPlot[#, ColorFunction -> "TemperatureMap", Frame -> False] & /@ history]
 ```
 
-### Using LeniaBlob
-
-For simpler experiments, `LeniaBlob` creates a Gaussian density:
+### Export as GIF
 
 ```wolfram
-grid = LeniaBlob[{128, 128}, {64, 64}, 10, 1.0];
+Export["lenia.gif",
+  ArrayPlot[#, ColorFunction -> "SolarColors", Frame -> False, ImageSize -> 256] & /@ history,
+  "AnimationRepetitions" -> Infinity, "DisplayDurations" -> 0.05
+]
 ```
-
-> **Note:** Gaussian blobs may need different `Mu`/`Sigma` values than ring-shaped seeds.
 
 ## API Reference
 
@@ -74,6 +86,10 @@ Runs the Lenia simulation using FFT-based circular convolution.
 | `"DT"` | 0.1 | Time step (= 1/T where T=10) |
 | `"Radius"` | 13 | Kernel radius R |
 | `"ReturnHistory"` | False | Return list of all states |
+
+### `LeniaSeed[n]` / `LeniaSeed[n, type]`
+
+Generates an n×n grid with interesting initial conditions. Without a type, picks randomly from: `"Ring"`, `"MultiRing"`, `"RandomOrganism"`, `"Constellation"`, `"Asymmetric"`.
 
 ### `LeniaKernel[gridSize, radius]`
 

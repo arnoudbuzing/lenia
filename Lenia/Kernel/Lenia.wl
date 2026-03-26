@@ -27,11 +27,12 @@ placeRing[grid_, center_, R_, peakR_ : 0.5, width_ : 0.15, amp_ : 1.0] := Module
 (* Single ring centered on grid *)
 leniaSeedRing[n_, R_] := placeRing[ConstantArray[0.0, {n, n}], {n/2, n/2}, R];
 
-(* Two concentric rings *)
-leniaSeedMultiRing[n_, R_] := Module[{grid},
+(* Two separate ring organisms *)
+leniaSeedMultiRing[n_, R_] := Module[{grid, sep},
   grid = ConstantArray[0.0, {n, n}];
-  grid = placeRing[grid, {n/2, n/2}, R, 0.35, 0.1, 0.8];
-  grid = placeRing[grid, {n/2, n/2}, R, 0.7, 0.08, 0.6];
+  sep = Round[R * 1.5];
+  grid = placeRing[grid, {n/2, n/2 - sep}, R, 0.5, 0.15, 1.0];
+  grid = placeRing[grid, {n/2, n/2 + sep}, R, 0.5, 0.15, 1.0];
   grid
 ];
 
@@ -42,20 +43,14 @@ leniaSeedRandomOrganism[n_, R_] := Module[{grid, noise},
   Clip[grid + grid * noise, {0.0, 1.0}]
 ];
 
-(* Multiple small organisms scattered across the grid *)
-leniaSeedConstellation[n_, R_] := Module[{grid, nOrganisms, centers, smallR},
+(* Three organisms in a triangular arrangement *)
+leniaSeedConstellation[n_, R_] := Module[{grid, mid, sep},
   grid = ConstantArray[0.0, {n, n}];
-  nOrganisms = RandomInteger[{3, 6}];
-  smallR = Max[3, Round[R * 0.6]];
-  centers = Table[
-    {RandomInteger[{Round[n * 0.2], Round[n * 0.8]}],
-     RandomInteger[{Round[n * 0.2], Round[n * 0.8]}]},
-    {nOrganisms}
-  ];
-  Do[
-    grid = placeRing[grid, c, smallR, RandomReal[{0.3, 0.6}], RandomReal[{0.1, 0.2}], RandomReal[{0.5, 1.0}]],
-    {c, centers}
-  ];
+  mid = n / 2;
+  sep = Round[R * 2.0];
+  grid = placeRing[grid, {mid - sep, mid}, R, 0.5, 0.15, 1.0];
+  grid = placeRing[grid, {mid + Round[sep/2], mid - sep}, R, 0.5, 0.15, 0.9];
+  grid = placeRing[grid, {mid + Round[sep/2], mid + sep}, R, 0.5, 0.15, 0.8];
   grid
 ];
 
