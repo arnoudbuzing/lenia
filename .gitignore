@@ -1,0 +1,18 @@
+# Rust build artifacts
+lenia-rs/target/
+
+# Compiled dynamic libraries (built artifacts placed in paclet)
+Lenia/LibraryResources/
+
+# macOS
+.DS_Store
+
+# Wolfram Language
+*.mx
+*.wl.bak
+
+# Editor / IDE
+*.swp
+*~
+.vscode/
+.idea/

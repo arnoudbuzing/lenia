@@ -8,6 +8,9 @@ LeniaGrowth::usage = "LeniaGrowth[n, mu, sigma] is the bell-shaped growth functi
 LeniaBlob::usage = "LeniaBlob[dims, center, radius] generates a localized density blob.";
 LeniaSeed::usage = "LeniaSeed[n] generates an n\[Times]n grid with interesting initial conditions. LeniaSeed[n, type] uses a specific seed type: \"Ring\", \"MultiRing\", \"RandomOrganism\", \"Constellation\", or \"Asymmetric\".";
 
+Lenia::norust = "Rust library not found at `1`. Falling back to Wolfram Language implementation.";
+Lenia::rustfail = "Rust function call failed (code `1`). Falling back to Wolfram Language implementation.";
+
 Begin["`Private`"];
 
 (* --- Seed Generation: LeniaSeed --- *)
@@ -112,25 +115,95 @@ LeniaStep[grid_?MatrixQ, kernelFFT_?MatrixQ, mu_, sigma_, dt_] := Module[{potent
   Clip[grid + dt * change, {0.0, 1.0}]
 ];
 
+(* ================================================================== *)
+(* --- Rust Backend via ForeignFunctionLoad --- *)
+(* ================================================================== *)
+
+$leniaRustLib = None;
+$leniaRustFn = None;
+$leniaRustFnHist = None;
+
+$leniaPacletDir = DirectoryName[$InputFileName, 2];
+
+leniaRustLibPath[] := Module[{ext},
+  ext = Switch[$OperatingSystem, "MacOSX", ".dylib", "Unix", ".so", "Windows", ".dll"];
+  FileNameJoin[{$leniaPacletDir, "LibraryResources", $SystemID, "liblenia_rs" <> ext}]
+];
+
+loadRustLibrary[] := Module[{libPath},
+  libPath = leniaRustLibPath[];
+  If[FileExistsQ[libPath],
+    $leniaRustLib = libPath;
+    True,
+    Message[Lenia::norust, libPath];
+    False
+  ]
+];
+
+initRustFunction[] := Module[{},
+  If[$leniaRustLib === None, loadRustLibrary[]];
+  If[$leniaRustLib =!= None && $leniaRustFn === None,
+    (* Non-history variant: returns {Real, 2} *)
+    $leniaRustFn = LibraryFunctionLoad[$leniaRustLib, "lenia_simulate",
+      {{Real, 2, "Constant"}, Integer, Integer, Real, Real, Real, Integer},
+      {Real, 2}
+    ];
+    (* History variant: returns {Real, 3} *)
+    $leniaRustFnHist = LibraryFunctionLoad[$leniaRustLib, "lenia_simulate",
+      {{Real, 2, "Constant"}, Integer, Integer, Real, Real, Real, Integer},
+      {Real, 3}
+    ];
+  ];
+  $leniaRustFn =!= None
+];
+
+leniaRunRust[grid_?MatrixQ, steps_Integer, mu_, sigma_, dt_, radius_, returnHistory_] :=
+  Module[{result},
+    If[returnHistory,
+      result = $leniaRustFnHist[N[grid], steps, radius, N[mu], N[sigma], N[dt], 1];
+      (* Convert rank-3 tensor to list of matrices *)
+      Table[result[[i]], {i, 1, Length[result]}]
+    ,
+      $leniaRustFn[N[grid], steps, radius, N[mu], N[sigma], N[dt], 0]
+    ]
+  ];
+
+(* ================================================================== *)
 (* --- Main Loop --- *)
+(* ================================================================== *)
+
 Options[Lenia] = {
   "Mu" -> 0.15,
   "Sigma" -> 0.015,
   "DT" -> 0.1,
   "Radius" -> 13,
-  "ReturnHistory" -> False
+  "ReturnHistory" -> False,
+  Method -> "Wolfram"
 };
 
-Lenia[initialGrid_?MatrixQ, steps_Integer, OptionsPattern[]] := Module[{kernelFFT, grid, mu, sigma, dt, radius},
+Lenia[initialGrid_?MatrixQ, steps_Integer, OptionsPattern[]] := Module[{kernelFFT, grid, mu, sigma, dt, radius, returnHistory, method},
   mu = OptionValue["Mu"];
   sigma = OptionValue["Sigma"];
   dt = OptionValue["DT"];
   radius = OptionValue["Radius"];
-  
+  returnHistory = TrueQ[OptionValue["ReturnHistory"]];
+  method = OptionValue[Method];
+
   grid = N[initialGrid];
+
+  (* Rust backend *)
+  If[method === "Rust",
+    If[initRustFunction[],
+      Return[leniaRunRust[grid, steps, mu, sigma, dt, radius, returnHistory]]
+      (* else: Rust not available — fall through to Wolfram backend.
+         Message already issued by initRustFunction. *)
+    ]
+  ];
+
+  (* Wolfram Language backend *)
   kernelFFT = LeniaKernelFFT[Dimensions[grid], radius];
-  
-  If[OptionValue["ReturnHistory"],
+
+  If[returnHistory,
     NestList[LeniaStep[#, kernelFFT, mu, sigma, dt] &, grid, steps]
   ,
     Nest[LeniaStep[#, kernelFFT, mu, sigma, dt] &, grid, steps]
