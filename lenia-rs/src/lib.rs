@@ -4,8 +4,9 @@
 //! Exports LibraryLink-compatible functions using the standard C ABI.
 
 use num_complex::Complex64;
-use rustfft::FftPlanner;
+use rustfft::{Fft, FftPlanner};
 use std::os::raw::c_void;
+use std::sync::Arc;
 
 // ---------------------------------------------------------------------------
 // LibraryLink type definitions (matching WolframLibrary.h)
@@ -106,36 +107,57 @@ unsafe fn margument_get_real(arg: MArgument) -> MReal {
 // 2D FFT helpers
 // ---------------------------------------------------------------------------
 
-fn fft2d(data: &mut [Complex64], rows: usize, cols: usize, inverse: bool) {
-    let mut planner = FftPlanner::<f64>::new();
-
-    // --- rows ---
-    let row_plan = if inverse {
-        planner.plan_fft_inverse(cols)
-    } else {
-        planner.plan_fft_forward(cols)
-    };
-    let mut scratch = vec![Complex64::new(0.0, 0.0); row_plan.get_inplace_scratch_len()];
-    for i in 0..rows {
-        let start = i * cols;
-        row_plan.process_with_scratch(&mut data[start..start + cols], &mut scratch);
-    }
-
-    // --- columns ---
-    let col_plan = if inverse {
-        planner.plan_fft_inverse(rows)
-    } else {
-        planner.plan_fft_forward(rows)
-    };
-    let mut scratch = vec![Complex64::new(0.0, 0.0); col_plan.get_inplace_scratch_len()];
-    let mut col_buf = vec![Complex64::new(0.0, 0.0); rows];
-    for j in 0..cols {
+fn fft2d(
+    data: &mut [Complex64],
+    rows: usize,
+    cols: usize,
+    inverse: bool,
+    planner: &mut FftPlanner<f64>,
+) {
+    if inverse {
+        let row_plan = planner.plan_fft_inverse(cols);
+        let mut scratch = vec![Complex64::new(0.0, 0.0); row_plan.get_inplace_scratch_len()];
         for i in 0..rows {
-            col_buf[i] = data[i * cols + j];
+            let start = i * cols;
+            row_plan.process_with_scratch(&mut data[start..start + cols], &mut scratch);
         }
-        col_plan.process_with_scratch(&mut col_buf, &mut scratch);
+
+        let col_plan = planner.plan_fft_inverse(rows);
+        let mut scratch = vec![Complex64::new(0.0, 0.0); col_plan.get_inplace_scratch_len()];
+        let mut col_buf = vec![Complex64::new(0.0, 0.0); rows];
+        for j in 0..cols {
+            for i in 0..rows {
+                col_buf[i] = data[i * cols + j];
+            }
+            col_plan.process_with_scratch(&mut col_buf, &mut scratch);
+            for i in 0..rows {
+                data[i * cols + j] = col_buf[i];
+            }
+        }
+        
+        let scale = 1.0 / (rows * cols) as f64;
+        for val in data.iter_mut() {
+            *val *= scale;
+        }
+    } else {
+        let row_plan = planner.plan_fft_forward(cols);
+        let mut scratch = vec![Complex64::new(0.0, 0.0); row_plan.get_inplace_scratch_len()];
         for i in 0..rows {
-            data[i * cols + j] = col_buf[i];
+            let start = i * cols;
+            row_plan.process_with_scratch(&mut data[start..start + cols], &mut scratch);
+        }
+
+        let col_plan = planner.plan_fft_forward(rows);
+        let mut scratch = vec![Complex64::new(0.0, 0.0); col_plan.get_inplace_scratch_len()];
+        let mut col_buf = vec![Complex64::new(0.0, 0.0); rows];
+        for j in 0..cols {
+            for i in 0..rows {
+                col_buf[i] = data[i * cols + j];
+            }
+            col_plan.process_with_scratch(&mut col_buf, &mut scratch);
+            for i in 0..rows {
+                data[i * cols + j] = col_buf[i];
+            }
         }
     }
 }
@@ -199,7 +221,7 @@ fn growth(n: f64, mu: f64, sigma: f64) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
-// Single Lenia step
+// Lenia Step Implementation
 // ---------------------------------------------------------------------------
 
 fn lenia_step_internal(
@@ -210,27 +232,65 @@ fn lenia_step_internal(
     mu: f64,
     sigma: f64,
     dt: f64,
-    buf: &mut Vec<Complex64>,
+    buf: &mut [Complex64],
+    row_plan: &Arc<dyn Fft<f64>>,
+    col_plan: &Arc<dyn Fft<f64>>,
+    inv_row_plan: &Arc<dyn Fft<f64>>,
+    inv_col_plan: &Arc<dyn Fft<f64>>,
 ) {
     let n = rows * cols;
-    let norm = 1.0 / n as f64;
+    let mut col_buf = vec![Complex64::new(0.0, 0.0); rows];
 
+    // 1. Grid FFT
     for i in 0..n {
         buf[i] = Complex64::new(grid[i], 0.0);
     }
+    
+    // Manual reuse of buffers for rows/cols in lenia_step to avoid reallocation
+    let mut scratch_row = vec![Complex64::new(0.0, 0.0); row_plan.get_inplace_scratch_len()];
+    for i in 0..rows {
+        row_plan.process_with_scratch(&mut buf[i * cols..(i + 1) * cols], &mut scratch_row);
+    }
 
-    fft2d(buf, rows, cols, false);
+    let mut scratch_col = vec![Complex64::new(0.0, 0.0); col_plan.get_inplace_scratch_len()];
+    for j in 0..cols {
+        for i in 0..rows {
+            col_buf[i] = buf[i * cols + j];
+        }
+        col_plan.process_with_scratch(&mut col_buf, &mut scratch_col);
+        for i in 0..rows {
+            buf[i * cols + j] = col_buf[i];
+        }
+    }
 
+    // 2. Pointwise multiplication
     for i in 0..n {
         buf[i] *= kernel_fft[i];
     }
 
-    fft2d(buf, rows, cols, true);
+    // 3. Inverse FFT
+    let mut inv_scratch_row = vec![Complex64::new(0.0, 0.0); inv_row_plan.get_inplace_scratch_len()];
+    for i in 0..rows {
+        inv_row_plan.process_with_scratch(&mut buf[i * cols..(i + 1) * cols], &mut inv_scratch_row);
+    }
 
+    let mut inv_scratch_col = vec![Complex64::new(0.0, 0.0); inv_col_plan.get_inplace_scratch_len()];
+    for j in 0..cols {
+        for i in 0..rows {
+            col_buf[i] = buf[i * cols + j];
+        }
+        inv_col_plan.process_with_scratch(&mut col_buf, &mut inv_scratch_col);
+        for i in 0..rows {
+            buf[i * cols + j] = col_buf[i];
+        }
+    }
+
+    // 4. Growth and Update
+    let scale = 1.0 / n as f64;
     for i in 0..n {
-        let potential = buf[i].re * norm;
-        let g = growth(potential, mu, sigma);
-        grid[i] = (grid[i] + dt * g).clamp(0.0, 1.0);
+        let potential = buf[i].re * scale;
+        let growth = 2.0 * (-(potential - mu).powi(2) / (2.0 * sigma.powi(2))).exp() - 1.0;
+        grid[i] = (grid[i] + dt * growth).clamp(0.0, 1.0);
     }
 }
 
@@ -238,34 +298,107 @@ fn lenia_step_internal(
 // LibraryLink entry points
 // =========================================================================
 
-/// Required: return the library version.
+// ---------------------------------------------------------------------------
+// Simulation logic helper
+// ---------------------------------------------------------------------------
+
+unsafe fn run_lenia_core(
+    lib_data: WolframLibraryData,
+    grid_tensor: MTensor,
+    kernel_tensor: MTensor,
+    steps: usize,
+    mu: f64,
+    sigma: f64,
+    dt: f64,
+    return_history: bool,
+) -> Result<MTensor, i32> {
+    // Extract callbacks
+    let mt_new: MTensorNewFn = get_callback(lib_data, MTENSOR_NEW_OFFSET);
+    let mt_get_rank: MTensorGetRankFn = get_callback(lib_data, MTENSOR_GETRANK_OFFSET);
+    let mt_get_dims: MTensorGetDimensionsFn = get_callback(lib_data, MTENSOR_GETDIMENSIONS_OFFSET);
+    let mt_get_real_data: MTensorGetRealDataFn = get_callback(lib_data, MTENSOR_GETREALDATA_OFFSET);
+
+    // Get grid dimensions
+    let rank = mt_get_rank(grid_tensor);
+    if rank != 2 { return Err(3); }
+    let dims_ptr = mt_get_dims(grid_tensor);
+    let rows = *dims_ptr as usize;
+    let cols = *dims_ptr.add(1) as usize;
+    let n = rows * cols;
+
+    // Get grid data
+    let grid_data = mt_get_real_data(grid_tensor);
+    if grid_data.is_null() { return Err(5); }
+    let mut grid = vec![0.0f64; n];
+    std::ptr::copy_nonoverlapping(grid_data, grid.as_mut_ptr(), n);
+
+    // Get kernel data and compute its FFT
+    let kernel_data = mt_get_real_data(kernel_tensor);
+    if kernel_data.is_null() { return Err(5); }
+    let mut kernel_fft: Vec<Complex64> = (0..n)
+        .map(|i| Complex64::new(*kernel_data.add(i), 0.0))
+        .collect();
+    
+    // Efficiently compute kernel FFT
+    let mut planner = FftPlanner::new();
+    fft2d(&mut kernel_fft, rows, cols, false, &mut planner);
+
+    // Pre-calculate FFT plans for the simulation steps
+    let row_plan = planner.plan_fft_forward(cols);
+    let col_plan = planner.plan_fft_forward(rows);
+    let inv_row_plan = planner.plan_fft_inverse(cols);
+    let inv_col_plan = planner.plan_fft_inverse(rows);
+
+    // Allocate result
+    let result_tensor: MTensor;
+    let result_data: *mut MReal;
+
+    if return_history {
+        let out_dims: [MInt; 3] = [(steps + 1) as MInt, rows as MInt, cols as MInt];
+        let mut tensor: MTensor = std::ptr::null_mut();
+        let err = mt_new(MTYPE_REAL, 3, out_dims.as_ptr(), &mut tensor);
+        if err != 0 { return Err(err); }
+        result_tensor = tensor;
+        result_data = mt_get_real_data(result_tensor);
+        std::ptr::copy_nonoverlapping(grid.as_ptr(), result_data, n);
+    } else {
+        let out_dims: [MInt; 2] = [rows as MInt, cols as MInt];
+        let mut tensor: MTensor = std::ptr::null_mut();
+        let err = mt_new(MTYPE_REAL, 2, out_dims.as_ptr(), &mut tensor);
+        if err != 0 { return Err(err); }
+        result_tensor = tensor;
+        result_data = mt_get_real_data(result_tensor);
+    }
+
+    // Loop
+    let mut buf = vec![Complex64::new(0.0, 0.0); n];
+    for step in 0..steps {
+        lenia_step_internal(
+            &mut grid, &kernel_fft, rows, cols, mu, sigma, dt, &mut buf,
+            &row_plan, &col_plan, &inv_row_plan, &inv_col_plan
+        );
+        if return_history {
+            std::ptr::copy_nonoverlapping(grid.as_ptr(), result_data.add((step + 1) * n), n);
+        }
+    }
+    if !return_history {
+        std::ptr::copy_nonoverlapping(grid.as_ptr(), result_data, n);
+    }
+
+    Ok(result_tensor)
+}
+
 #[no_mangle]
 pub extern "C" fn WolframLibrary_getVersion() -> MInt {
     WOLFRAM_LIBRARY_VERSION
 }
 
-/// Required: library initialization.
 #[no_mangle]
 pub extern "C" fn WolframLibrary_initialize(_lib_data: WolframLibraryData) -> i32 {
     LIBRARY_NO_ERROR
 }
 
-/// lenia_simulate(grid, steps, radius, mu, sigma, dt, returnHistory) -> result
-///
-/// Wolfram Language call:
-///   LibraryFunctionLoad[lib, "lenia_simulate",
-///     {{Real, 2, "Constant"}, Integer, Integer, Real, Real, Real, Integer},
-///     {Real, 2}]    (* non-history *)
-///   -- or for history: returns {Real, 3}
-///
-/// Args[0]: MTensor grid (input, rank 2, Real)
-/// Args[1]: Integer steps
-/// Args[2]: Integer radius
-/// Args[3]: Real mu
-/// Args[4]: Real sigma
-/// Args[5]: Real dt
-/// Args[6]: Integer returnHistory (0 or 1)
-/// Res: MTensor (rank 2 or rank 3)
+/// lenia_simulate(grid, kernel, steps, mu, sigma, dt) -> result {Real, 2}
 #[no_mangle]
 pub unsafe extern "C" fn lenia_simulate(
     lib_data: WolframLibraryData,
@@ -273,90 +406,38 @@ pub unsafe extern "C" fn lenia_simulate(
     args: *mut MArgument,
     res: MArgument,
 ) -> i32 {
-    // Extract callbacks from WolframLibraryData
-    let mt_new: MTensorNewFn = get_callback(lib_data, MTENSOR_NEW_OFFSET);
-    let mt_get_rank: MTensorGetRankFn = get_callback(lib_data, MTENSOR_GETRANK_OFFSET);
-    let mt_get_dims: MTensorGetDimensionsFn = get_callback(lib_data, MTENSOR_GETDIMENSIONS_OFFSET);
-    let mt_get_real_data: MTensorGetRealDataFn = get_callback(lib_data, MTENSOR_GETREALDATA_OFFSET);
-
-    // Parse arguments
-    let grid_tensor = margument_get_tensor(*args.add(0));
-    let steps = margument_get_integer(*args.add(1)) as usize;
-    let radius = margument_get_integer(*args.add(2)) as usize;
+    let grid = margument_get_tensor(*args.add(0));
+    let kernel = margument_get_tensor(*args.add(1));
+    let steps = margument_get_integer(*args.add(2)) as usize;
     let mu = margument_get_real(*args.add(3));
     let sigma = margument_get_real(*args.add(4));
     let dt = margument_get_real(*args.add(5));
-    let return_history = margument_get_integer(*args.add(6)) != 0;
 
-    // Get grid dimensions
-    let rank = mt_get_rank(grid_tensor);
-    if rank != 2 {
-        return 1; // LIBRARY_DIMENSION_ERROR
+    match run_lenia_core(lib_data, grid, kernel, steps, mu, sigma, dt, false) {
+        Ok(t) => { margument_set_tensor(res, t); 0 },
+        Err(e) => e
     }
-    let dims_ptr = mt_get_dims(grid_tensor);
-    let rows = *dims_ptr as usize;
-    let cols = *dims_ptr.add(1) as usize;
-    let n = rows * cols;
+}
 
-    // Get input data
-    let grid_data = mt_get_real_data(grid_tensor);
-    let mut grid = vec![0.0f64; n];
-    std::ptr::copy_nonoverlapping(grid_data, grid.as_mut_ptr(), n);
+/// lenia_simulate_history(grid, kernel, steps, mu, sigma, dt) -> result {Real, 3}
+#[no_mangle]
+pub unsafe extern "C" fn lenia_simulate_history(
+    lib_data: WolframLibraryData,
+    _argc: MInt,
+    args: *mut MArgument,
+    res: MArgument,
+) -> i32 {
+    let grid = margument_get_tensor(*args.add(0));
+    let kernel = margument_get_tensor(*args.add(1));
+    let steps = margument_get_integer(*args.add(2)) as usize;
+    let mu = margument_get_real(*args.add(3));
+    let sigma = margument_get_real(*args.add(4));
+    let dt = margument_get_real(*args.add(5));
 
-    // Build kernel & FFT
-    let kernel = build_kernel(rows, cols, radius);
-    let mut kernel_fft: Vec<Complex64> = kernel.iter().map(|&v| Complex64::new(v, 0.0)).collect();
-    fft2d(&mut kernel_fft, rows, cols, false);
-
-    // Allocate result tensor
-    let result_tensor: MTensor;
-    let result_data: *mut MReal;
-
-    if return_history {
-        // Rank-3 tensor: (steps+1) x rows x cols
-        let out_dims: [MInt; 3] = [(steps + 1) as MInt, rows as MInt, cols as MInt];
-        let mut tensor: MTensor = std::ptr::null_mut();
-        let err = mt_new(MTYPE_REAL, 3, out_dims.as_ptr(), &mut tensor);
-        if err != 0 {
-            return err;
-        }
-        result_tensor = tensor;
-        result_data = mt_get_real_data(result_tensor);
-
-        // Write initial state
-        std::ptr::copy_nonoverlapping(grid.as_ptr(), result_data, n);
-    } else {
-        // Rank-2 tensor: rows x cols
-        let out_dims: [MInt; 2] = [rows as MInt, cols as MInt];
-        let mut tensor: MTensor = std::ptr::null_mut();
-        let err = mt_new(MTYPE_REAL, 2, out_dims.as_ptr(), &mut tensor);
-        if err != 0 {
-            return err;
-        }
-        result_tensor = tensor;
-        result_data = mt_get_real_data(result_tensor);
+    match run_lenia_core(lib_data, grid, kernel, steps, mu, sigma, dt, true) {
+        Ok(t) => { margument_set_tensor(res, t); 0 },
+        Err(e) => e
     }
-
-    // Simulation loop
-    let mut buf = vec![Complex64::new(0.0, 0.0); n];
-    for step in 0..steps {
-        lenia_step_internal(&mut grid, &kernel_fft, rows, cols, mu, sigma, dt, &mut buf);
-
-        if return_history {
-            let offset = (step + 1) * n;
-            std::ptr::copy_nonoverlapping(grid.as_ptr(), result_data.add(offset), n);
-        }
-    }
-
-    // Write final result (non-history mode)
-    if !return_history {
-        std::ptr::copy_nonoverlapping(grid.as_ptr(), result_data, n);
-    }
-
-    // Set result
-    margument_set_tensor(res, result_tensor);
-
-    LIBRARY_NO_ERROR
 }
 
 // ---------------------------------------------------------------------------

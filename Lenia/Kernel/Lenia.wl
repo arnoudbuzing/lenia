@@ -2,7 +2,7 @@ BeginPackage["Lenia`"];
 
 Lenia::usage = "Lenia[grid, steps, opts] runs the Lenia continuous cellular automaton.";
 LeniaStep::usage = "LeniaStep[grid, kernelFFT, mu, sigma, dt] performs one iteration using FFT convolution.";
-LeniaKernel::usage = "LeniaKernel[gridSize, radius] creates a normalized Lenia kernel at the given grid size.";
+LeniaKernel::usage = "LeniaKernel[gridSize, radius] creates a normalized Lenia kernel at the given grid size. LeniaKernel[gridSize, radius, type] uses a specific kernel type: \"Bump\", \"GaussianRing\", \"StepRing\", \"Polynomial\", \"SmoothLife\", or \"Sharp\".";
 LeniaKernelFFT::usage = "LeniaKernelFFT[gridSize, radius] returns the FFT of the normalized Lenia kernel.";
 LeniaGrowth::usage = "LeniaGrowth[n, mu, sigma] is the bell-shaped growth function.";
 LeniaBlob::usage = "LeniaBlob[dims, center, radius] generates a localized density blob.";
@@ -90,23 +90,31 @@ LeniaGrowth[n_, mu_, sigma_] := 2.0 * Exp[-((n - mu)^2) / (2.0 * sigma^2)] - 1.0
 (* Builds kernel at full grid size for FFT-based convolution.
    Following Bert Chan's reference: kernel is placed at grid center,
    then fftshifted so the center is at (0,0) for correct FFT convolution. *)
-LeniaKernel[gridSize : {_Integer, _Integer}, radius_Integer] := Module[{mid, r, core, kernelNorm},
-  mid = Ceiling[gridSize / 2];
-  (* Normalized distance: r = distance_from_center / R *)
-  r = N @ Table[
-    Sqrt[((i - mid[[1]])^2 + (j - mid[[2]])^2)] / radius,
-    {i, 1, gridSize[[1]]}, {j, 1, gridSize[[2]]}
-  ];
-  (* Exponential bump kernel: nonzero only for 0 < r < 1 *)
-  core = Map[If[0.0 < # < 1.0, Exp[4.0 - 1.0 / (# * (1.0 - #))], 0.0] &, r, {2}];
-  (* Normalize to sum to 1 *)
-  kernelNorm = core / Total[core, 2];
-  (* Shift center to (0,0) corner for FFT convolution *)
-  RotateLeft[kernelNorm, mid - 1]
-];
 
-LeniaKernelFFT[gridSize : {_Integer, _Integer}, radius_Integer] :=
-  Fourier[LeniaKernel[gridSize, radius], FourierParameters -> {1, -1}];
+(* Core radial profiles: given normalized r in [0,1], return kernel value *)
+leniaKernelCore["Bump", r_] := If[0.0 < r < 1.0, Exp[4.0 - 1.0 / (r * (1.0 - r))], 0.0];
+leniaKernelCore["GaussianRing", r_] := If[0.0 < r < 1.0, Exp[-((r - 0.5)^2) / (2.0 * 0.15^2)], 0.0];
+leniaKernelCore["StepRing", r_] := If[0.25 < r < 0.75, 1.0, 0.0];
+leniaKernelCore["Polynomial", r_] := If[0.0 < r < 1.0, (4.0 * r * (1.0 - r))^4, 0.0];
+leniaKernelCore["SmoothLife", r_] := If[0.0 < r < 1.0,
+  0.5 * (1.0 + Tanh[20.0 * (r - 0.25)]) * 0.5 * (1.0 + Tanh[20.0 * (0.75 - r)]), 0.0];
+leniaKernelCore["Sharp", r_] := If[0.0 < r < 1.0,
+  Exp[-((r - 0.5)^2) / (2.0 * 0.05^2)], 0.0];
+
+LeniaKernel[gridSize : {_Integer, _Integer}, radius_Integer, kernelType_String : "Bump"] :=
+  Module[{mid, r, core, kernelNorm},
+    mid = Ceiling[gridSize / 2];
+    r = N @ Table[
+      Sqrt[((i - mid[[1]])^2 + (j - mid[[2]])^2)] / radius,
+      {i, 1, gridSize[[1]]}, {j, 1, gridSize[[2]]}
+    ];
+    core = Map[leniaKernelCore[kernelType, #] &, r, {2}];
+    kernelNorm = core / Total[core, 2];
+    RotateLeft[kernelNorm, mid - 1]
+  ];
+
+LeniaKernelFFT[gridSize : {_Integer, _Integer}, radius_Integer, kernelType_String : "Bump"] :=
+  Fourier[LeniaKernel[gridSize, radius, kernelType], FourierParameters -> {1, -1}];
 
 (* --- Single Step (FFT-based circular convolution) --- *)
 LeniaStep[grid_?MatrixQ, kernelFFT_?MatrixQ, mu_, sigma_, dt_] := Module[{potential, change},
@@ -143,29 +151,25 @@ loadRustLibrary[] := Module[{libPath},
 initRustFunction[] := Module[{},
   If[$leniaRustLib === None, loadRustLibrary[]];
   If[$leniaRustLib =!= None && $leniaRustFn === None,
-    (* Non-history variant: returns {Real, 2} *)
+    (* Non-history variant: returns NumericArray *)
     $leniaRustFn = LibraryFunctionLoad[$leniaRustLib, "lenia_simulate",
-      {{Real, 2, "Constant"}, Integer, Integer, Real, Real, Real, Integer},
-      {Real, 2}
+      {{Real, 2, "Constant"}, {Real, 2, "Constant"}, Integer, Real, Real, Real},
+      NumericArray
     ];
-    (* History variant: returns {Real, 3} *)
-    $leniaRustFnHist = LibraryFunctionLoad[$leniaRustLib, "lenia_simulate",
-      {{Real, 2, "Constant"}, Integer, Integer, Real, Real, Real, Integer},
-      {Real, 3}
+    (* History variant: returns NumericArray *)
+    $leniaRustFnHist = LibraryFunctionLoad[$leniaRustLib, "lenia_simulate_history",
+      {{Real, 2, "Constant"}, {Real, 2, "Constant"}, Integer, Real, Real, Real},
+      NumericArray
     ];
   ];
   $leniaRustFn =!= None
 ];
 
-leniaRunRust[grid_?MatrixQ, steps_Integer, mu_, sigma_, dt_, radius_, returnHistory_] :=
-  Module[{result},
-    If[returnHistory,
-      result = $leniaRustFnHist[N[grid], steps, radius, N[mu], N[sigma], N[dt], 1];
-      (* Convert rank-3 tensor to list of matrices *)
-      Table[result[[i]], {i, 1, Length[result]}]
-    ,
-      $leniaRustFn[N[grid], steps, radius, N[mu], N[sigma], N[dt], 0]
-    ]
+leniaRunRust[grid_?MatrixQ, kernel_?MatrixQ, steps_Integer, mu_, sigma_, dt_, returnHistory_] :=
+  If[returnHistory,
+    $leniaRustFnHist[N[grid], N[kernel], steps, N[mu], N[sigma], N[dt]]
+  ,
+    $leniaRustFn[N[grid], N[kernel], steps, N[mu], N[sigma], N[dt]]
   ];
 
 (* ================================================================== *)
@@ -178,37 +182,43 @@ Options[Lenia] = {
   "DT" -> 0.1,
   "Radius" -> 13,
   "ReturnHistory" -> False,
+  "LeniaKernel" -> "Bump",
   Method -> "Wolfram"
 };
 
-Lenia[initialGrid_?MatrixQ, steps_Integer, OptionsPattern[]] := Module[{kernelFFT, grid, mu, sigma, dt, radius, returnHistory, method},
-  mu = OptionValue["Mu"];
-  sigma = OptionValue["Sigma"];
-  dt = OptionValue["DT"];
-  radius = OptionValue["Radius"];
-  returnHistory = TrueQ[OptionValue["ReturnHistory"]];
-  method = OptionValue[Method];
+Lenia[initialGrid_?MatrixQ, steps_Integer, OptionsPattern[]] :=
+  Module[{kernel, kernelFFT, grid, mu, sigma, dt, radius, returnHistory, method, kernelType},
+    mu = OptionValue["Mu"];
+    sigma = OptionValue["Sigma"];
+    dt = OptionValue["DT"];
+    radius = OptionValue["Radius"];
+    returnHistory = TrueQ[OptionValue["ReturnHistory"]];
+    method = OptionValue[Method];
+    kernelType = OptionValue["LeniaKernel"];
 
-  grid = N[initialGrid];
+    grid = N[initialGrid];
 
-  (* Rust backend *)
-  If[method === "Rust",
-    If[initRustFunction[],
-      Return[leniaRunRust[grid, steps, mu, sigma, dt, radius, returnHistory]]
-      (* else: Rust not available — fall through to Wolfram backend.
-         Message already issued by initRustFunction. *)
+    (* Build kernel (shared by both backends) *)
+    kernel = LeniaKernel[Dimensions[grid], radius, kernelType];
+
+    (* Rust backend *)
+    If[method === "Rust",
+      If[initRustFunction[],
+        Return[leniaRunRust[grid, kernel, steps, mu, sigma, dt, returnHistory]]
+        (* else: Rust not available — fall through to Wolfram backend.
+           Message already issued by initRustFunction. *)
+      ]
+    ];
+
+    (* Wolfram Language backend *)
+    kernelFFT = Fourier[kernel, FourierParameters -> {1, -1}];
+
+    If[returnHistory,
+      NumericArray[NestList[LeniaStep[#, kernelFFT, mu, sigma, dt] &, grid, steps], "Real64"]
+    ,
+      NumericArray[Nest[LeniaStep[#, kernelFFT, mu, sigma, dt] &, grid, steps], "Real64"]
     ]
   ];
-
-  (* Wolfram Language backend *)
-  kernelFFT = LeniaKernelFFT[Dimensions[grid], radius];
-
-  If[returnHistory,
-    NestList[LeniaStep[#, kernelFFT, mu, sigma, dt] &, grid, steps]
-  ,
-    Nest[LeniaStep[#, kernelFFT, mu, sigma, dt] &, grid, steps]
-  ]
-];
 
 End[];
 EndPackage[];
