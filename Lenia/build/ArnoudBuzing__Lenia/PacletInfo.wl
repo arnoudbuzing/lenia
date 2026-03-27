@@ -25,6 +25,7 @@ PacletObject[
           "ArnoudBuzing`Lenia`LeniaSeed"
         }
       },
+      {"LibraryLink"},
       {"Documentation", "Language" -> "English"}
     }
   |>

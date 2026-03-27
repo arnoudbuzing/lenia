@@ -19,6 +19,33 @@
             "File"
             ->
             File[
+                "LibraryResources/MacOSX-ARM64/liblenia_rs.dylib"
+            ]
+            ,
+            "Hash"
+            ->
+            "b295124c1fcb6d2ca756fe7dd5fb37a9c5250a7e3a4a6f89a8185f8108fd2267"
+                
+        |>
+        ,
+        <|
+            "File"
+            ->
+            File[
+                "LibraryResources/MacOSX-ARM64/liblenia_rs_min.dylib"
+                    
+            ]
+            ,
+            "Hash"
+            ->
+            "21fd2e2dddccc4233edf9703fbf0760741195ea63116c62e37c42ea77d4ec7a2"
+                
+        |>
+        ,
+        <|
+            "File"
+            ->
+            File[
                 "Documentation/English/Guides/Lenia.nb"
             ]
             ,
