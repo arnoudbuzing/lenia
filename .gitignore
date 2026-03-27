@@ -2,7 +2,6 @@
 lenia-rs/target/
 
 # Compiled dynamic libraries (built artifacts placed in paclet)
-Lenia/LibraryResources/
 
 # macOS
 .DS_Store

@@ -1,126 +1,93 @@
 # Lenia for Wolfram Language
 
-A professional-grade implementation of the **Lenia** continuous cellular automaton in the Wolfram Language, based on [Bert Chan's original work](https://chakazul.github.io/lenia.html).
+A high-performance, professional-grade implementation of the **Lenia** continuous cellular automaton for the Wolfram Language, inspired by [Bert Chan's original work](https://chakazul.github.io/lenia.html).
 
-## Features
+## What is Lenia?
 
-- **Continuous State and Space**: Full support for continuous grid values on [0, 1].
-- **FFT-based Convolution**: Fast, correct circular convolution using Fourier transforms with periodic boundary conditions.
-- **Gaussian Growth Function**: Standard bell-shaped growth function `G(n) = 2 * Exp[-(n-μ)²/(2σ²)] - 1`.
-- **Bump Kernel**: Exponential bump kernel `K(r) = Exp[4 - 1/(r(1-r))]` for `0 < r < 1`.
+**Lenia** (from the Latin *lenia*, meaning "smooth") is a family of cellular automata that exists in continuous space, time, and states. Unlike traditional discrete CA like Conway's *Game of Life*, Lenia uses:
+- **Continuous Grids**: Cell values are real numbers in the range $[0.0, 1.0]$.
+- **Circular Convolution**: Neighborhood influences are computed via spatial kernels.
+- **Growth Functions**: A bell-shaped function determines how a cell's state changes based on its neighborhood density.
+
+Lenia is capable of producing remarkably lifelike "organisms" with complex behaviors, including stable gliders, rotating colonies, and self-replicating patterns.
+
+## What this Paclet Provides
+
+This paclet brings Lenia to the Wolfram Language with a focus on **performance**, **usability**, and **extensibility**:
+
+- 🚀 **Dual Backends**: Run simulations using the optimized pure Wolfram Language implementation (via `Fourier`) or the ultra-fast **Rust-based backend** for large-scale experiments.
+- 🧬 **Organism Seeds**: Built-in library of initial conditions (`LeniaSeed`) to quickly generate "Rings", "Constellations", and other complex lifeforms.
+- 💾 **Memory Efficiency**: Transparent support for `NumericArray` objects to handle large grids and long histories without exhausting system RAM.
+- 🛠️ **Configurable Kernels**: Support for multiple kernel profiles beyond the standard "Bump", including `"GaussianRing"`, `"SmoothLife"`, and `"StepRing"`.
+- 📊 **Rich Visualization**: Seamless integration with Wolfram's visualization tools for creating animations and scientific plots.
+
+---
 
 ## Installation
 
-Clone the repository and load the paclet:
+Clone this repository and load the paclet directory:
 
 ```wolfram
-PacletDirectoryLoad["path/to/lenia/Lenia"]
-Needs["Lenia`"]
+PacletDirectoryLoad["/path/to/lenia/Lenia"]
+Needs["ArnoudBuzing`Lenia`"]
 ```
 
 ## Quick Start
 
-### Quickest Way: `LeniaSeed`
-
-Generate an interesting initial grid and run:
-
+### 1. Generate an Organism
+Generate a 128x128 grid with a random complex organism:
 ```wolfram
 grid = LeniaSeed[128];
-result = Lenia[grid, 200, "ReturnHistory" -> True];
-ListAnimate[ArrayPlot[#, ColorFunction -> "SolarColors", Frame -> False] & /@ result]
 ```
 
-You can also pick a specific seed type:
-
+### 2. Run the Simulation
+Perform 100 steps of evolution using the default parameters:
 ```wolfram
-LeniaSeed[128, "Ring"]             (* single ring organism *)
-LeniaSeed[128, "MultiRing"]        (* two side-by-side rings *)
-LeniaSeed[128, "RandomOrganism"]   (* ring with random perturbation *)
-LeniaSeed[128, "Constellation"]    (* three organisms in a triangle *)
-LeniaSeed[128, "Asymmetric"]       (* off-center ring with a bump *)
-```
-
-### Manual Seed
-
-For full control, create a ring-shaped seed directly:
-
-```wolfram
-gridSize = {128, 128};
-R = 13;
-grid = N @ Table[
-  Module[{r = Sqrt[(i - 64)^2 + (j - 64)^2] / R},
-    If[r < 1.0, Exp[-((r - 0.5)^2) / (2 * 0.15^2)], 0.0]
-  ],
-  {i, 1, 128}, {j, 1, 128}
-];
-result = Lenia[grid, 200, "Mu" -> 0.15, "Sigma" -> 0.015, "Radius" -> R];
+result = Lenia[grid, 100];
 ArrayPlot[result, ColorFunction -> "SolarColors"]
 ```
 
-### Animation
-
+### 3. Animate the History
+Capture every step and animate the result:
 ```wolfram
-history = Lenia[grid, 200, "ReturnHistory" -> True];
-ListAnimate[ArrayPlot[#, ColorFunction -> "TemperatureMap", Frame -> False] & /@ history]
+history = Lenia[grid, 100, "ReturnHistory" -> True];
+ListAnimate[ArrayPlot[#, ColorFunction -> "SolarColors", Frame -> False] & /@ history]
 ```
 
-### Export as GIF
+---
 
+## Advanced Features
+
+### Rust Acceleration
+For high-performance simulations, switch to the Rust backend:
 ```wolfram
-Export["lenia.gif",
-  ArrayPlot[#, ColorFunction -> "SolarColors", Frame -> False, ImageSize -> 256] & /@ history,
-  "AnimationRepetitions" -> Infinity, "DisplayDurations" -> 0.05
-]
+result = Lenia[grid, 1000, Method -> "Rust"];
 ```
 
-## API Reference
+### Alternative Kernels
+Explore different physics by changing the kernel profile:
+```wolfram
+result = Lenia[grid, 50, "LeniaKernel" -> "SmoothLife"];
+```
 
-### `Lenia[grid, steps, options]`
+### Full Documentation
+For a detailed breakdown of all arguments, options, and helper functions, see the [Lenia Documentation](docs/Lenia.md).
 
-Runs the Lenia simulation using FFT-based circular convolution.
+---
+
+## API Summary: `Lenia` Options
 
 | Option | Default | Description |
-|--------|---------|-------------|
-| `"Mu"` | 0.15 | Growth function center |
-| `"Sigma"` | 0.015 | Growth function width |
-| `"DT"` | 0.1 | Time step (= 1/T where T=10) |
-| `"Radius"` | 13 | Kernel radius R |
-| `"ReturnHistory"` | False | Return list of all states |
+| :--- | :--- | :--- |
+| `"Mu"` | `0.15` | Center of the growth function peak. |
+| `"Sigma"` | `0.015` | Width of the growth function peak. |
+| `"DT"` | `0.1` | Integration time step. |
+| `"Radius"` | `13` | Spatial radius of the kernel influence. |
+| `"LeniaKernel"` | `"Bump"` | Kernel profile type (e.g., `"GaussianRing"`, `"StepRing"`). |
+| `"ReturnHistory"`| `False` | Return all intermediate states as a `NumericArray`. |
+| `Method` | `"Wolfram"` | Backend selector: `"Wolfram"` or `"Rust"`. |
 
-### `LeniaSeed[n]` / `LeniaSeed[n, type]`
-
-Generates an n×n grid with interesting initial conditions. Without a type, picks randomly from: `"Ring"`, `"MultiRing"`, `"RandomOrganism"`, `"Constellation"`, `"Asymmetric"`.
-
-### `LeniaKernel[gridSize, radius]`
-
-Generates the normalized bump kernel at full grid size (FFT-shifted).
-
-### `LeniaKernelFFT[gridSize, radius]`
-
-Returns `Fourier[LeniaKernel[...], FourierParameters -> {1, -1}]` for use in `LeniaStep`.
-
-### `LeniaStep[grid, kernelFFT, mu, sigma, dt]`
-
-Performs a single Lenia iteration using FFT convolution.
-
-### `LeniaGrowth[n, mu, sigma]`
-
-The bell-shaped growth function: `2 * Exp[-(n-μ)²/(2σ²)] - 1`.
-
-### `LeniaBlob[dims, center, radius, amplitude]`
-
-Creates a Gaussian density blob. `amplitude` defaults to 1.0.
-
-## Troubleshooting
-
-### Why does my simulation decay to zero?
-
-Lenia is sensitive to the match between initial conditions and parameters:
-
-- **Use ring-shaped seeds**: The bump kernel weights a ring at `r ≈ 0.5`. Seeds need density in this ring to trigger growth.
-- **Gaussian blobs alone often fail**: Their density is concentrated at the center (`r ≈ 0`), missing the kernel's ring peak.
-- **Parameter sensitivity**: Growth only occurs when the convolved potential `n` is within `μ ± ~3σ` of the growth peak.
+---
 
 ## License
-
 MIT License.

@@ -1,0 +1,227 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Wolfram 14.3' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       154,          7]
+NotebookDataLength[      8485,        218]
+NotebookOptionsPosition[      6312,        169]
+NotebookOutlinePosition[      7790,        207]
+CellTagsIndexPosition[      7747,        204]
+WindowTitle->Lenia
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[BoxData[GridBox[{
+   {GridBox[{
+      {
+       ItemBox[Cell[BoxData[
+         RowBox[{
+          TemplateBox[{12},
+           "Spacer1"], Cell["ARNOUD BUZING/ LENIA GUIDE", "PacletNameCell",
+           TextAlignment->Center,ExpressionUUID->
+           "e48882fe-e9ab-43b0-b4c9-a818afad6328"], 
+          TemplateBox[{8},
+           "Spacer1"]}]],
+         TextAlignment->Center,ExpressionUUID->
+         "f1570734-4d9c-4e29-aaf4-a9b96f905804"],
+        Background->LightDarkSwitched[
+          RGBColor[0.85098, 0.396078, 0]],
+        ItemSize->Full], ""}
+     },
+     GridBoxAlignment->{"Rows" -> {{Center}}},
+     GridBoxItemSize->{"Columns" -> {Full, 
+         Scaled[0.02]}, "Rows" -> {{2.5}}}], Cell[TextData[{
+     Cell[BoxData[
+      TagBox[
+       ActionMenuBox[
+        FrameBox[Cell[TextData[{
+          "Functions",
+          " ",
+          Cell[BoxData[
+           GraphicsBox[
+            {GrayLevel[0.66667], Thickness[0.13], 
+             LineBox[{{-1.8, 0.5}, {0, 0}, {1.8, 0.5}}]},
+            AspectRatio->1,
+            ImageSize->20,
+            PlotRange->{{-3, 4}, {-1, 1}}]],ExpressionUUID->
+           "0ef5e144-d725-42f5-be02-09c03d44a444"]
+         }],ExpressionUUID->"5faddc2f-c068-4664-a406-f7464fdd2191"],
+         StripOnInput->False],{
+        StyleBox["\"Lenia\"", "SeeAlsoRelated", StripOnInput -> False] :> 
+         Documentation`HelpLookup["paclet:ArnoudBuzing/Lenia/ref/Lenia"], 
+         StyleBox["\"LeniaSeed\"", "SeeAlsoRelated", StripOnInput -> False] :> 
+         Documentation`HelpLookup["paclet:ArnoudBuzing/Lenia/ref/LeniaSeed"]},
+        
+        Appearance->None,
+        MenuAppearance->Automatic,
+        MenuStyle->"GuideFunction"],
+       MouseAppearanceTag["LinkHand"]]],
+      LineSpacing->{1.4, 0},ExpressionUUID->
+      "0f91de2b-0351-4a7f-9ecd-fa7bafebefd3"],
+     "\[ThickSpace]\[ThickSpace]\[ThickSpace]\[ThickSpace]\[ThickSpace]\
+\[ThickSpace]",
+     Cell[BoxData[
+      TagBox[
+       ActionMenuBox[
+        FrameBox[Cell[TextData[{
+          "URL",
+          " ",
+          Cell[BoxData[
+           GraphicsBox[
+            {GrayLevel[0.66667], Thickness[0.13], 
+             LineBox[{{-1.8, 0.5}, {0, 0}, {1.8, 0.5}}]},
+            AspectRatio->1,
+            ImageSize->20,
+            PlotRange->{{-3, 4}, {-1, 1}}]],ExpressionUUID->
+           "4f8ae18e-332c-4e0c-8d5e-b760cfbcb8f7"]
+         }],ExpressionUUID->"ba09456e-7046-444f-b13c-35b6f01bc0a2"],
+         StripOnInput->False],{
+        "\"ArnoudBuzing/Lenia/guide/Lenia\"" :> None, 
+         "\"Copy Wolfram Documentation Center URL\"" :> 
+         CopyToClipboard["ArnoudBuzing/Lenia/guide/Lenia"], Delimiter, 
+         "\"Copy web URL\"" :> 
+         Module[{DocumentationSearch`Private`nb$}, 
+           DocumentationSearch`Private`nb$ = 
+            NotebookPut[
+             Notebook[{
+               Cell[BoxData[
+                 MakeBoxes[
+                  Hyperlink[
+                   "http://reference.wolfram.com/language/ArnoudBuzing/Lenia/\
+guide/Lenia.html"], StandardForm]], "Input", TextClipboardType -> 
+                 "PlainText"]}, Visible -> False]]; 
+           SelectionMove[DocumentationSearch`Private`nb$, All, Notebook]; 
+           FrontEndTokenExecute[DocumentationSearch`Private`nb$, "Copy"]; 
+           NotebookClose[DocumentationSearch`Private`nb$]; Null], 
+         "\"Go to web URL\"" :> 
+         FrontEndExecute[{
+           NotebookLocate[{
+             URL[(If[TrueQ[False], 
+                  "http://reference.wolfram.com/system-modeler/", 
+                  "http://reference.wolfram.com/language/"] <> 
+                "ArnoudBuzing/Lenia/guide/Lenia") <> ".html"], None}]}]},
+        Appearance->None,
+        MenuAppearance->Automatic,
+        MenuStyle->"URLMenu"],
+       MouseAppearanceTag["LinkHand"]]],
+      LineSpacing->{1.4, 0},ExpressionUUID->
+      "3b1aafb5-66fc-416f-ad65-07e9c6752697"]
+    }], "AnchorBar",
+     CacheGraphics->False,ExpressionUUID->
+     "d9bb6d21-5085-4ac2-a17e-d709940217ae"]}
+  }]], "AnchorBarGrid",
+ GridBoxOptions->{GridBoxItemSize->{"Columns" -> {
+     Scaled[0.65], {
+      Scaled[0.34]}}, "ColumnsIndexed" -> {}, "Rows" -> {{1.}}, 
+   "RowsIndexed" -> {}}},
+ CellID->1,ExpressionUUID->"d2ea9e62-9250-4348-9eeb-3cd30b7cc6ec"],
+
+Cell[CellGroupData[{
+
+Cell["Lenia", "GuideTitle",
+ CellID->401446849,ExpressionUUID->"129c3a03-9e50-4219-b966-31186a93946f"],
+
+Cell["\[NonBreakingSpace]", "GuideAbstract",
+ CellID->1852831580,ExpressionUUID->"4ae0caa2-0151-40b9-8425-bb4199d74ad2"],
+
+Cell["\t", "GuideDelimiterSubsection",ExpressionUUID->"3e73a77e-3b8e-4dbd-ba00-11dfc8552e6d"],
+
+Cell[TextData[{
+ Cell[BoxData[
+  TemplateBox[{
+    Cell[
+     TextData["Lenia"]], "paclet:ArnoudBuzing/Lenia/ref/Lenia", 
+    "ArnoudBuzing Package Symbol"},
+   "PackageLink",
+   BaseStyle->"InlineFunctionSans"]], "InlineFunctionSans",
+  CellTags->"c40ac8e4-27e1-4161-a8df-4d4f38357a23",ExpressionUUID->
+  "4d301cae-6f1b-43d1-b7d5-f0dc648d6e6d"],
+ " ",
+ StyleBox["\[LongDash]", "GuideEmDash"],
+ " runs the Lenia continuous cellular automaton"
+}], "GuideText",
+ CellID->1466357352,ExpressionUUID->"28e3a5aa-abee-4bcb-96c4-05747debb8db"],
+
+Cell[TextData[{
+ Cell[BoxData[
+  TemplateBox[{
+    Cell[
+     TextData["LeniaSeed"]], "paclet:ArnoudBuzing/Lenia/ref/LeniaSeed", 
+    "ArnoudBuzing Package Symbol"},
+   "PackageLink",
+   BaseStyle->"InlineFunctionSans"]], "InlineFunctionSans",
+  CellTags->"c5c6736a-1ff4-4e4e-8fcf-2d9846cbae62",ExpressionUUID->
+  "ce35a781-24f1-4372-bec8-18298f53400b"],
+ " \[LongDash] generates a grid with interesting initial conditions. \n"
+}], "GuideText",
+ CellID->545682092,ExpressionUUID->"49f2fbec-15ab-441b-acbb-51c12fd30dab"]
+}, Open  ]],
+
+Cell[" ", "FooterCell",ExpressionUUID->"53d6aece-b46c-4db1-b9cf-8a8d4fc252c1"]
+},
+Saveable->False,
+ScreenStyleEnvironment->"Working",
+WindowSize->{900, 830},
+WindowMargins->{{0, Automatic}, {Automatic, 0}},
+WindowTitle->"Lenia",
+Visible->True,
+TaggingRules->{
+ "ModificationHighlight" -> False, "ColorType" -> "", "LinkTrails" -> "", 
+  "ExampleCounter" -> 1, 
+  "Openers" -> {
+   "PrimaryExamplesSection" -> Open, "ExampleSection" -> {"0" -> Open}}, 
+  "NewStyles" -> True, "CitationPopupData" -> {$Failed, ""}, "ShowCitation" -> 
+  False, "RootCaptions" -> "", "HeaderCoreAreaLink" -> {}, 
+  "Metadata" -> {
+   "built" -> "{2026, 3, 27, 17, 8, 5.855840}", 
+    "history" -> {"XX", "", "", ""}, "context" -> "ArnoudBuzing`Lenia`", 
+    "keywords" -> {}, "specialkeywords" -> {}, 
+    "tutorialcollectionlinks" -> {}, "index" -> True, "label" -> 
+    "Arnoud Buzing/ Lenia Guide", "language" -> "en", "paclet" -> 
+    "ArnoudBuzing/Lenia", "status" -> "None", "summary" -> "", 
+    "synonyms" -> {}, "tabletags" -> {}, "title" -> "Lenia", "titlemodifier" -> 
+    "", "metadescription" -> "", "windowtitle" -> "Lenia", "type" -> "Guide", 
+    "uri" -> "ArnoudBuzing/Lenia/guide/Lenia"}},
+CacheGraphics->False,
+FrontEndVersion->"14.3 for Mac OS X ARM (64-bit) (July 8, 2025)",
+StyleDefinitions->FrontEnd`FileName[{"Wolfram"}, "Reference.nb"],
+ExpressionUUID->"28fb9c6c-009a-48f1-b77a-2cbfc0a72e93"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[573, 21, 4236, 103, 70, "AnchorBarGrid",ExpressionUUID->"d2ea9e62-9250-4348-9eeb-3cd30b7cc6ec",
+ CellID->1],
+Cell[CellGroupData[{
+Cell[4834, 128, 102, 1, 70, "GuideTitle",ExpressionUUID->"129c3a03-9e50-4219-b966-31186a93946f",
+ CellID->401446849],
+Cell[4939, 131, 120, 1, 70, "GuideAbstract",ExpressionUUID->"4ae0caa2-0151-40b9-8425-bb4199d74ad2",
+ CellID->1852831580],
+Cell[5062, 134, 93, 0, 70, "GuideDelimiterSubsection",ExpressionUUID->"3e73a77e-3b8e-4dbd-ba00-11dfc8552e6d"],
+Cell[5158, 136, 535, 14, 70, "GuideText",ExpressionUUID->"28e3a5aa-abee-4bcb-96c4-05747debb8db",
+ CellID->1466357352],
+Cell[5696, 152, 519, 12, 70, "GuideText",ExpressionUUID->"49f2fbec-15ab-441b-acbb-51c12fd30dab",
+ CellID->545682092]
+}, Open  ]],
+Cell[6230, 167, 78, 0, 70, "FooterCell",ExpressionUUID->"53d6aece-b46c-4db1-b9cf-8a8d4fc252c1"]
+}
+]
+*)
+
+(* End of internal cache information *)
